@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cadastre
+      POSTGRES_PASSWORD: cadastre
+      POSTGRES_DB: cadastre
+    ports:
+      - "5432:5432"
+    volumes:
+      - cadastre_pg:/var/lib/postgresql/data
+volumes:
+  cadastre_pg:

@@ -1,0 +1,178 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+enum Role {
+  ADMIN
+  INSPECTOR
+  APPLICANT
+}
+
+enum Substance {
+  COBALT
+  COPPER
+  COLTAN
+  GOLD
+}
+
+enum PermitType {
+  RESEARCH
+  EXPLOITATION
+}
+
+/// FREE / ATTRIBUTED / PENDING / RESERVED sont visibles sur la carte et (sauf FREE) bloquent tout chevauchement.
+enum TitleStatus {
+  FREE
+  ATTRIBUTED
+  PENDING
+  RESERVED
+  REJECTED
+  EXPIRED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  IN_INSTRUCTION
+  INSTRUCTED
+  APPROVED
+  REJECTED
+}
+
+enum DocKind {
+  STATUTS
+  RCCM
+  EIE
+  AUTRE
+}
+
+enum Opinion {
+  FAVORABLE
+  UNFAVORABLE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role
+  company      String?
+  rccm         String?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  titles       Title[]
+  applications Application[]
+}
+
+/// Carré / périmètre minier. `geom` est une colonne PostGIS (EPSG:4326) lue et écrite en SQL brut.
+model Title {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  type       PermitType?
+  status     TitleStatus
+  substances Substance[]
+  holderName String?
+  holderId   String?
+  holder     User?        @relation(fields: [holderId], references: [id])
+  province   String
+  locality   String
+  areaHa     Float?
+  geom       Unsupported("geometry(Polygon,4326)")?
+  grantedAt  DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  fees        FeePayment[]
+  application Application?
+
+  @@index([status])
+  @@index([province])
+  @@index([holderId])
+}
+
+model FeePayment {
+  id         String    @id @default(cuid())
+  titleId    String
+  title      Title     @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  year       Int
+  amountUsd  Float
+  dueDate    DateTime
+  paidAt     DateTime?
+  reference  String?
+  recordedBy String?
+
+  @@unique([titleId, year])
+  @@index([dueDate])
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  ref           String            @unique
+  applicantId   String
+  applicant     User              @relation(fields: [applicantId], references: [id])
+  titleId       String            @unique
+  title         Title             @relation(fields: [titleId], references: [id], onDelete: Cascade)
+  status        ApplicationStatus @default(SUBMITTED)
+  instructorId  String?
+  instructorName String?
+  opinion       Opinion?
+  opinionNote   String?
+  decisionNote  String?
+  decidedById   String?
+  decidedByName String?
+  decidedAt     DateTime?
+  submittedAt   DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  documents Document[]
+
+  @@index([status])
+  @@index([applicantId])
+}
+
+model Document {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind          DocKind
+  filename      String
+  mime          String
+  size          Int
+  sha256        String
+  data          Bytes
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId])
+}
+
+/// Journal d'audit à hash chaîné global : modifier ou supprimer une ligne casse la chaîne.
+model AuditLog {
+  id         String   @id @default(cuid())
+  seq        Int      @default(autoincrement())
+  action     String
+  entity     String?
+  entityId   String?
+  details    String?
+  fromStatus String?
+  toStatus   String?
+  actorId    String?
+  actorName  String
+  actorRole  Role?
+  ip         String?
+  createdAt  DateTime
+  prevHash   String?
+  hash       String   @unique
+
+  @@index([seq])
+  @@index([entity, entityId])
+}
