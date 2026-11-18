@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Briefcase, Landmark, Loader2, ShieldCheck, Satellite } from "lucide-react";
 import { api } from "@/lib/client";
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from "@/lib/constants";
 import { ErrorBox } from "@/components/Feedback";
 
 export default function LoginForm({ demo }: { demo: boolean }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -24,11 +22,10 @@ export default function LoginForm({ demo }: { demo: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: targetEmail, password: targetPass }),
       });
-      router.push(res.redirect);
-      router.refresh();
+      // Redirection directe par le navigateur pour valider le cookie de session
+      window.location.href = res.redirect;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible.");
-    } finally {
       setBusy(null);
     }
   }
