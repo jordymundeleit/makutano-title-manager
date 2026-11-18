@@ -19,10 +19,8 @@ export default function LoginForm({ demo }: { demo: boolean }) {
     try {
       const res = await api<{ redirect: string }>("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: targetEmail, password: targetPass }),
+        json: { email: targetEmail, password: targetPass },
       });
-      // Redirection directe par le navigateur pour valider le cookie de session
       window.location.href = res.redirect;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible.");
