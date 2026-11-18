@@ -9,10 +9,15 @@ import { api } from "@/lib/client";
 export function AppHeader({ user, subtitle }: { user: { name: string; role: Role } | null; subtitle?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  async function logout() {
+    async function logout() {
     setBusy(true);
-    try { await api("/api/auth/logout", { method: "POST" }); } finally { router.push("/login"); router.refresh(); }
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
   }
+
   const home = user ? (user.role === "APPLICANT" ? "/applicant" : "/admin") : "/login";
   return (
     <header className="sticky top-0 z-[1100] border-b border-line bg-panel/95 backdrop-blur">
