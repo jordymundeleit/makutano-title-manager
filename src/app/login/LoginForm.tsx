@@ -29,9 +29,9 @@ export default function LoginForm({ demo }: { demo: boolean }) {
   }
 
   const quick = [
-    { key: "admin", icon: ShieldCheck, ...DEMO_ACCOUNTS.admin },
-    { key: "inspector", icon: Satellite, ...DEMO_ACCOUNTS.inspector },
-    { key: "applicant", icon: Briefcase, ...DEMO_ACCOUNTS.applicant },
+    { key: "admin", icon: ShieldCheck, ...DEMO_ACCOUNTS.admin, subtitle: "Décisions, redevances, audit" },
+    { key: "inspector", icon: Satellite, ...DEMO_ACCOUNTS.inspector, subtitle: "Instruction technique des dossiers" },
+    { key: "applicant", icon: Briefcase, ...DEMO_ACCOUNTS.applicant, subtitle: "Déposer une demande, suivre ses dossiers" },
   ];
 
   return (
@@ -139,7 +139,7 @@ export default function LoginForm({ demo }: { demo: boolean }) {
                       </div>
                       <div>
                         <p className="font-medium leading-snug">{q.label}</p>
-                        <p className="text-xs text-muted">{q.desc}</p>
+                        <p className="text-xs text-muted">{q.subtitle}</p>
                       </div>
                     </button>
                   );
