@@ -1,81 +1,40 @@
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { prisma, logAudit } from "@/lib/prisma";
-import { clientIp, fail, ok, route } from "@/lib/api";
-import { setSessionCookie } from "@/lib/auth";
+import { NextResponse } from 'next/server';
 
-export const dynamic = "force-dynamic";
+export async function POST(request: Request) {
+  try {
+    const { email, password, role } = await request.json();
+    
+    // Le mot de passe universel que tu as publié sur LinkedIn
+    const UNIVERSAL_PASSWORD = process.env.DEMO_UNIVERSAL_PASSWORD || "Makutano2026!";
 
-const schema = z.object({
-  email: z.string().trim().toLowerCase().email("Adresse e-mail invalide."),
-  password: z.string().min(1, "Le mot de passe est requis."),
-  role: z.enum(["ADMIN", "INSPECTOR", "APPLICANT"]).optional(),
-});
-
-const DEMO_PASSWORD_CODE = "Makutano2026";
-const DUMMY = bcrypt.hashSync("dummy-password", 10);
-
-export const POST = route(async (req: Request) => {
-  const body = await req.json().catch(() => ({}));
-  const parsed = schema.safeParse(body);
-
-  if (!parsed.success) {
-    return fail("Données invalides.", 400);
-  }
-
-  const { email, password, role } = parsed.data;
-  const ip = clientIp(req);
-
-  let user = await prisma.user.findUnique({ where: { email } });
-  let isValidPassword = false;
-
-  if (user) {
-    if (password === DEMO_PASSWORD_CODE) {
-      isValidPassword = true;
-    } else {
-      isValidPassword = await bcrypt.compare(password, user.passwordHash ?? DUMMY);
+    // On vérifie si le mot de passe correspond au mot de passe universel de démo
+    if (password !== UNIVERSAL_PASSWORD) {
+      return NextResponse.json(
+        { success: false, message: "Mot de passe de démo incorrect." }, 
+        { status: 401 }
+      );
     }
-  } else {
-    if (password === DEMO_PASSWORD_CODE) {
-      const assignedRole = role || "APPLICANT";
-      const generatedPasswordHash = await bcrypt.hash(Math.random().toString(), 10);
-      
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: email.split("@")[0],
-          passwordHash: generatedPasswordHash,
-          role: assignedRole,
-          active: true,
-        },
-      });
-      isValidPassword = true;
-    }
-  }
 
-  if (!user || !isValidPassword || !user.active) {
-    await logAudit({
-      action: "LOGIN_FAILED",
-      details: `Tentative échouée sur ${email}`,
-      ip,
+    // Détermination de la redirection selon le rôle choisi par l'utilisateur
+    let redirectPath = "/applicant";
+    if (role === "ADMIN" || role === "ADMIN_MINISTERE") {
+      redirectPath = "/admin";
+    } else if (role === "INSPECTOR" || role === "INSPECTEUR_SIG") {
+      redirectPath = "/dashboard"; // ou la route de l'inspecteur
+    }
+
+    // Connexion réussie, on retourne le succès et le chemin de redirection
+    return NextResponse.json({ 
+      success: true, 
+      message: "Connexion réussie",
+      redirect: redirectPath,
+      user: { email, role } 
     });
-    return fail("Identifiants invalides ou code d'accès incorrect.", 401);
+
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message }, 
+      { status: 500 }
+    );
   }
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-
-  await setSessionCookie({ uid: user.id, role: user.role, name: user.name });
-
-  await logAudit({
-    action: "LOGIN_DEMO_SUCCESS",
-    actor: { id: user.id, name: user.name, role: user.role },
-    details: `Connexion démo réussie via IP ${ip}`,
-    ip,
-  });
-
-  const redirectPath = user.role === "APPLICANT" ? "/applicant" : "/admin";
-  return ok({ redirect: redirectPath });
-});
+}
