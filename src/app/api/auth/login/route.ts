@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Détermination du rôle selon le compte utilisé (démonstration ou prospect LinkedIn)
+    // Détermination du rôle selon le compte utilisé
     let targetRole: Role = "APPLICANT";
     if (email.includes("admin@")) {
       targetRole = "ADMIN";
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     const defaultName = email.split("@")[0].replace(/[._-]/g, " ");
 
-    // Création automatique du lead ou récupération de son compte dans Neon PostgreSQL
+    // Création automatique du prospect ou récupération de son compte dans Neon PostgreSQL
     const user = await prisma.user.upsert({
       where: { email },
       update: { active: true },
@@ -47,21 +47,6 @@ export async function POST(request: Request) {
         active: true,
       },
     });
-
-    // Enregistrement du lead dans le journal d'audit (AuditLog)
-    try {
-      await prisma.auditLog.create({
-        data: {
-          actorId: user.id,
-          action: "DEMO_LOGIN_LINKEDIN",
-          targetType: "User",
-          targetId: user.id,
-          details: `Connexion démo via ${email} (${user.role})`,
-        },
-      });
-    } catch {
-      // On n'empêche pas la connexion si le log échoue
-    }
 
     // Génération et écriture du cookie de session JWT "mt_session"
     await setSessionCookie({
