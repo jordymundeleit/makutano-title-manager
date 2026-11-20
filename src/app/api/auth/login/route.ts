@@ -3,6 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { setSessionCookie } from "@/lib/auth";
 import { DEMO_PASSWORD, type Role } from "@/lib/constants";
 
+function normalizeRole(rawRole: unknown, email: string): Role {
+  if (rawRole === "ADMIN" || rawRole === "INSPECTOR" || rawRole === "APPLICANT") {
+    return rawRole;
+  }
+  if (email.includes("admin@")) return "ADMIN";
+  if (email.includes("inspector@") || email.includes("inspecteur@") || email.includes("sig@")) {
+    return "INSPECTOR";
+  }
+  return "APPLICANT";
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -16,39 +27,34 @@ export async function POST(request: Request) {
       );
     }
 
-    const UNIVERSAL_PASSWORD = process.env.DEMO_UNIVERSAL_PASSWORD || DEMO_PASSWORD || "Makutano2026";
+    const universalPassword =
+      process.env.DEMO_UNIVERSAL_PASSWORD || DEMO_PASSWORD || "Makutano2026";
 
-    if (password !== UNIVERSAL_PASSWORD) {
+    if (password !== universalPassword) {
       return NextResponse.json(
-        { error: "Code d'accès démo incorrect (utilisez Makutano2026)." },
+        { error: `Code d'accès démo incorrect (utilisez ${DEMO_PASSWORD}).` },
         { status: 401 }
       );
     }
 
-    // Détermination du rôle selon le compte utilisé
-    let targetRole: Role = "APPLICANT";
-    if (email.includes("admin@")) {
-      targetRole = "ADMIN";
-    } else if (email.includes("inspector@") || email.includes("sig@")) {
-      targetRole = "INSPECTOR";
-    }
+    const targetRole = normalizeRole(body.role, email);
+    const defaultName = email.split("@")[0].replace(/[._-]/g, " ").trim() || "Visiteur Démo";
 
-    const defaultName = email.split("@")[0].replace(/[._-]/g, " ");
-
-    // Création automatique du prospect ou récupération de son compte dans Neon PostgreSQL
     const user = await prisma.user.upsert({
       where: { email },
-      update: { active: true },
+      update: {
+        role: targetRole,
+        active: true,
+      },
       create: {
         email,
-        name: defaultName || "Visiteur Démo",
+        name: defaultName,
         passwordHash: "DEMO_ACCESS_2026",
         role: targetRole,
         active: true,
       },
     });
 
-    // Génération et écriture du cookie de session JWT "mt_session"
     await setSessionCookie({
       uid: user.id,
       role: user.role as Role,
@@ -61,7 +67,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       redirect: redirectPath,
-      user: { email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error("Login error:", error);
